@@ -296,7 +296,7 @@
             data: "https://example.com",
             margin: 10,
             qrOptions: { typeNumber: 0, mode: "Byte", errorCorrectionLevel: "M" },
-            imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 8, crossOrigin: "anonymous" },
+            imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 8 },
             dotsOptions: { type: "square", color: "#ffffff" },
             backgroundOptions: { color: "#000000" }
         });
@@ -598,9 +598,8 @@
                 backgroundOptions: {
                     color: bgColor
                 },
-                image: state.logoDataUrl || undefined,
+                image: state.logoDataUrl || '',
                 imageOptions: {
-                    crossOrigin: "anonymous",
                     margin: 10,
                     imageSize: 0.25, // 25% of QR Code
                     hideBackgroundDots: true
