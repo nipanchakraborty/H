@@ -20,14 +20,14 @@
             theme: {
                 extend: {
                     colors: {
-                        background: '#0A0A0C',
-                        card: '#17171B',
-                        surface: '#202027',
+                        background: '#000000',
+                        card: '#0a0a0a',
+                        surface: '#141414',
                         primary: '#5C6AC4', // Restrained Violet/Blue
                         primaryHover: '#4d59a8',
                         textMain: '#FFFFFF',
                         textMuted: '#A1A1AA',
-                        borderSubtle: '#2E2E36',
+                        borderSubtle: '#262626',
                         error: '#EF4444'
                     },
                     borderRadius: {
@@ -75,7 +75,7 @@
         .hidden-collapse { display: none; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased">
+<body class="bg-background text-textMain min-h-screen flex flex-col antialiased">
 
     <!-- Header -->
     <header class="pt-12 pb-6 px-6 max-w-5xl mx-auto w-full">
@@ -198,8 +198,8 @@
                         <div>
                             <label class="block text-sm text-textMuted mb-2">Background Color</label>
                             <div class="flex items-center gap-2">
-                                <input type="color" id="color-bg" value="#202027" class="w-10 h-10 rounded cursor-pointer bg-transparent border-0 p-0" onchange="triggerPreviewUpdate()">
-                                <span class="text-sm font-mono text-textMuted" id="color-bg-label">#202027</span>
+                                <input type="color" id="color-bg" value="#000000" class="w-10 h-10 rounded cursor-pointer bg-transparent border-0 p-0" onchange="triggerPreviewUpdate()">
+                                <span class="text-sm font-mono text-textMuted" id="color-bg-label">#000000</span>
                             </div>
                         </div>
                     </div>
@@ -298,7 +298,7 @@
             qrOptions: { typeNumber: 0, mode: "Byte", errorCorrectionLevel: "M" },
             imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 8, crossOrigin: "anonymous" },
             dotsOptions: { type: "square", color: "#ffffff" },
-            backgroundOptions: { color: "#202027" }
+            backgroundOptions: { color: "#000000" }
         });
 
         // Initialize UI
@@ -566,6 +566,17 @@
             if (fgColor === bgColor || (fgColor === '#ffffff' && bgColor === '#ffffff')) {
                 showToast("Warning: Low contrast between colors may make the QR unreadable.", "error");
             }
+            
+            // Adjust corners to match dot type for a cohesive look
+            let cornersSquareType = "square";
+            let cornersDotType = "square";
+            if (dotType === "rounded" || dotType === "extra-rounded") {
+                cornersSquareType = "extra-rounded";
+                cornersDotType = "dot";
+            } else if (dotType === "dots") {
+                cornersSquareType = "dot";
+                cornersDotType = "dot";
+            }
 
             return {
                 data: payload,
@@ -575,6 +586,14 @@
                 dotsOptions: {
                     color: fgColor,
                     type: dotType
+                },
+                cornersSquareOptions: {
+                    color: fgColor,
+                    type: cornersSquareType
+                },
+                cornersDotOptions: {
+                    color: fgColor,
+                    type: cornersDotType
                 },
                 backgroundOptions: {
                     color: bgColor
@@ -658,16 +677,33 @@
         /**
          * Export functionality
          */
-        function downloadQR(format) {
+        async function downloadQR(format) {
             if (!state.isGenerated) {
                 showToast("Please generate a valid QR code first.", "error");
                 return;
             }
             
-            const fileName = `my-qr-code-${Date.now()}`;
-            state.qrCodeInstance.download({ name: fileName, extension: format })
-                .then(() => showToast(`Downloaded ${format.toUpperCase()} successfully!`, "success"))
-                .catch(() => showToast("Download failed.", "error"));
+            try {
+                const fileName = `my-qr-code-${Date.now()}.${format}`;
+                // Fetch the raw blob data to securely force the download
+                const blob = await state.qrCodeInstance.getRawData(format);
+                
+                if (!blob) throw new Error("Could not generate image data");
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast(`Downloaded ${format.toUpperCase()} successfully!`, "success");
+            } catch (err) {
+                console.error("Export error:", err);
+                showToast("Download failed. Try regenerating the QR code.", "error");
+            }
         }
 
         function downloadHubHTML() {
