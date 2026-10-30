@@ -101,8 +101,8 @@
                 <button id="mode-single-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm" onclick="setMode('single')">
                     Single Link
                 </button>
-                <button id="mode-multi-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain" onclick="setMode('multi')">
-                    Multi-Link Hub
+                <button id="mode-text-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain" onclick="setMode('text')">
+                    Plain Text
                 </button>
             </div>
 
@@ -119,53 +119,22 @@
                 </div>
             </div>
 
-            <!-- Multi Link Input Panel -->
-            <div id="panel-multi" class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle hidden-collapse">
+            <!-- Plain Text Input Panel -->
+            <div id="panel-text" class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle hidden-collapse">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <i class="ph ph-list-dashes text-primary"></i> Link List
+                        <i class="ph ph-text-aa text-primary"></i> Plain Text
                     </h2>
                 </div>
                 
-                <div id="file-protocol-warning" class="hidden bg-error/10 border border-error/20 text-error text-xs p-3 rounded-xl mb-4">
-                    <i class="ph ph-warning-circle text-base align-middle mr-1"></i> Running locally. The generated Hub QR will only work on this specific device. Host this HTML file online for public scanning.
-                </div>
-
-                <p class="text-xs text-textMuted mb-6 leading-relaxed">
-                    Add multiple links below. We automatically encode them into the QR code. When scanned, it opens a sleek, mobile-friendly page showing your links as buttons!
+                <p class="text-xs text-textMuted mb-4 leading-relaxed">
+                    Type or paste any amount of text, notes, or messages here. The QR code will directly display this text when scanned on any phone.
                 </p>
 
-                <div id="link-entries-container" class="space-y-3 mb-4">
-                    <!-- Dynamic link entries go here -->
-                </div>
-
-                <button onclick="addLinkEntry()" class="w-full bg-surface hover:bg-borderSubtle text-textMain border border-borderSubtle border-dashed rounded-2xl p-4 font-semibold transition-colors flex items-center justify-center gap-2 btn-press mt-2">
-                    <i class="ph ph-plus-circle text-xl"></i> Add Another Link
-                </button>
-                <p id="multi-url-error" class="text-error text-xs mt-3 hidden text-center"></p>
-            </div>
-
-            <!-- Center Logo Panel -->
-            <div class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50">
-                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="ph ph-image-square text-primary"></i> Center Logo
-                </h2>
-                <p class="text-xs text-textMuted mb-4">Upload a PNG/JPG. It will be cropped into a circle automatically.</p>
-                
-                <div class="flex items-center gap-4">
-                    <div id="logo-preview-container" class="w-16 h-16 rounded-full bg-surface border border-borderSubtle flex items-center justify-center overflow-hidden shrink-0 relative group">
-                        <i class="ph ph-image text-textMuted text-xl" id="logo-placeholder-icon"></i>
-                        <img id="logo-preview-img" src="" class="w-full h-full object-cover hidden">
-                        <button id="clear-logo-btn" onclick="clearLogo()" class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden cursor-pointer">
-                            <i class="ph ph-trash text-white text-lg"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="flex-grow">
-                        <input type="file" id="logo-upload" accept="image/png, image/jpeg" class="hidden" onchange="handleLogoUpload(event)">
-                        <label for="logo-upload" class="bg-surface hover:bg-borderSubtle text-textMain text-sm font-medium py-2.5 px-5 rounded-full cursor-pointer transition-colors border border-borderSubtle inline-block btn-press">
-                            Choose Image
-                        </label>
+                <div class="space-y-4">
+                    <div>
+                        <textarea id="text-content" rows="6" placeholder="Type your text here..." class="w-full bg-surface text-textMain rounded-2xl p-4 border border-borderSubtle focus:border-primary outline-none transition-colors placeholder-textMuted/50 resize-y"></textarea>
+                        <p id="text-error" class="text-error text-xs mt-2 ml-2 hidden"></p>
                     </div>
                 </div>
             </div>
@@ -203,7 +172,7 @@
                             <option value="L">Low (7%)</option>
                             <option value="M" selected>Medium (15%) - Default</option>
                             <option value="Q">Quartile (25%)</option>
-                            <option value="H">High (30%) - Best for Logos</option>
+                            <option value="H">High (30%) - Best for Dense Text</option>
                         </select>
                     </div>
 
@@ -234,7 +203,7 @@
                         <!-- Canvas injected by library -->
                         <div id="qr-placeholder" class="text-textMuted flex flex-col items-center text-center absolute">
                             <i class="ph ph-qr-code text-5xl mb-2"></i>
-                            <span class="text-xs font-medium">Enter URL<br>to generate</span>
+                            <span class="text-xs font-medium">Enter Data<br>to generate</span>
                         </div>
                     </div>
 
@@ -269,11 +238,7 @@
          * State & Configurations
          */
         const state = {
-            mode: 'single', // 'single' or 'multi'
-            logoDataUrl: null,
-            links: [
-                { id: generateId(), title: '', url: '' }
-            ],
+            mode: 'single', // 'single' or 'text'
             qrCodeInstance: null,
             isGenerated: false
         };
@@ -283,51 +248,9 @@
 
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
-            // Check if we are in "Hub Reader" mode (Scan Result)
-            const params = new URLSearchParams(window.location.search);
-            const hubData = params.get('hub');
-            if (hubData) {
-                try {
-                    const links = JSON.parse(decodeURIComponent(escape(atob(hubData))));
-                    renderHubPage(links);
-                    return; // Stop initialization of generator UI
-                } catch (e) {
-                    console.error("Failed to parse hub data", e);
-                }
-            }
-
-            // Normal Generator Init
-            renderLinkEntries();
             setupColorSync();
             setupInputListeners();
-            
-            // Show warning if multi-mode will result in local file URLs
-            if (window.location.protocol === 'file:') {
-                document.getElementById('file-protocol-warning').classList.remove('hidden');
-            }
         });
-
-        function renderHubPage(links) {
-            document.body.innerHTML = `
-                <div class="min-h-screen bg-background flex flex-col items-center p-6 pt-20 max-w-md mx-auto w-full">
-                    <div class="w-16 h-16 bg-primary/20 text-primary rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(92,106,196,0.3)]">
-                        <i class="ph ph-link text-3xl"></i>
-                    </div>
-                    <div class="text-center mb-10">
-                        <h1 class="text-3xl font-bold mb-2 text-textMain tracking-tight">Link Hub</h1>
-                        <p class="text-textMuted text-sm">Select a destination below to continue</p>
-                    </div>
-                    <div class="w-full space-y-4">
-                        ${links.map(l => `
-                            <a href="${escapeHTML(l.url)}" target="_blank" rel="noopener noreferrer" class="w-full bg-surface hover:bg-[#202027] text-textMain border border-borderSubtle rounded-[20px] p-5 font-semibold transition-all shadow-sm flex items-center justify-between gap-3 group active:scale-95">
-                                <span class="truncate flex-grow text-left">${escapeHTML(l.title)}</span>
-                                <i class="ph ph-caret-right text-textMuted group-hover:text-primary transition-colors"></i>
-                            </a>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
 
         /**
          * UI Toggles & Interactions
@@ -335,21 +258,19 @@
         function setMode(mode) {
             state.mode = mode;
             const singleBtn = document.getElementById('mode-single-btn');
-            const multiBtn = document.getElementById('mode-multi-btn');
+            const textBtn = document.getElementById('mode-text-btn');
             const panelSingle = document.getElementById('panel-single');
-            const panelMulti = document.getElementById('panel-multi');
+            const panelText = document.getElementById('panel-text');
 
             if (mode === 'single') {
-                // Style buttons
                 singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
-                multiBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
-                // Show/hide panels
+                textBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
                 panelSingle.classList.remove('hidden-collapse');
-                panelMulti.classList.add('hidden-collapse');
+                panelText.classList.add('hidden-collapse');
             } else {
-                multiBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
+                textBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
                 singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
-                panelMulti.classList.remove('hidden-collapse');
+                panelText.classList.remove('hidden-collapse');
                 panelSingle.classList.add('hidden-collapse');
             }
             triggerPreviewUpdate();
@@ -382,155 +303,25 @@
         }
 
         function setupInputListeners() {
-            const inputs = [
-                document.getElementById('single-url')
-            ];
-            inputs.forEach(input => {
-                input.addEventListener('input', () => {
-                    clearErrors();
-                    triggerPreviewUpdate();
-                });
-                input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleGenerate();
-                    }
-                });
-            });
-        }
-
-        /**
-         * Link List Management (Multi-Mode)
-         */
-        function generateId() {
-            return Math.random().toString(36).substr(2, 9);
-        }
-
-        function addLinkEntry() {
-            state.links.push({ id: generateId(), title: '', url: '' });
-            renderLinkEntries();
-            triggerPreviewUpdate();
-        }
-
-        function removeLinkEntry(id) {
-            if (state.links.length <= 1) {
-                showToast("You need at least one link.", "error");
-                return;
-            }
-            state.links = state.links.filter(link => link.id !== id);
-            renderLinkEntries();
-            triggerPreviewUpdate();
-        }
-
-        function updateLink(id, field, value) {
-            const link = state.links.find(l => l.id === id);
-            if (link) {
-                link[field] = value;
+            // URL Input Setup
+            const urlInput = document.getElementById('single-url');
+            urlInput.addEventListener('input', () => {
+                clearErrors();
                 triggerPreviewUpdate();
-            }
-        }
-
-        function renderLinkEntries() {
-            const container = document.getElementById('link-entries-container');
-            container.innerHTML = '';
-            
-            state.links.forEach((link, index) => {
-                const row = document.createElement('div');
-                row.className = "flex gap-2 items-start bg-background p-3 rounded-2xl border border-borderSubtle";
-                row.innerHTML = `
-                    <div class="flex-grow space-y-2">
-                        <input type="text" placeholder="Title (e.g. My Portfolio)" value="${escapeHTML(link.title)}" 
-                               oninput="updateLink('${link.id}', 'title', this.value)"
-                               class="w-full bg-transparent text-sm text-textMain rounded px-2 py-1 outline-none placeholder-textMuted/50 border-b border-transparent focus:border-primary transition-colors">
-                        <input type="url" placeholder="https://..." value="${escapeHTML(link.url)}" 
-                               oninput="updateLink('${link.id}', 'url', this.value)"
-                               class="w-full bg-transparent text-sm text-textMuted rounded px-2 py-1 outline-none placeholder-textMuted/50 border-b border-transparent focus:border-primary transition-colors">
-                    </div>
-                    <button onclick="removeLinkEntry('${link.id}')" class="p-2 text-textMuted hover:text-error transition-colors mt-2" title="Remove Link">
-                        <i class="ph ph-trash text-lg"></i>
-                    </button>
-                `;
-                container.appendChild(row);
             });
-        }
+            urlInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleGenerate();
+                }
+            });
 
-        /**
-         * Logo Handling (Circular Crop using Canvas)
-         */
-        function handleLogoUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            // Validate file type
-            if (!['image/png', 'image/jpeg'].includes(file.type)) {
-                showToast("Only PNG and JPEG images are supported.", "error");
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    // Create an offscreen canvas to crop the image into a circle
-                    const canvas = document.createElement('canvas');
-                    
-                    // Limit max size to prevent huge data URIs from crashing the QR library
-                    const MAX_SIZE = 256;
-                    const minDim = Math.min(img.width, img.height);
-                    const scale = minDim > MAX_SIZE ? MAX_SIZE / minDim : 1;
-                    const size = Math.floor(minDim * scale);
-                    
-                    // Add padding to ensure it fits nicely in the QR quiet zone
-                    const padding = size * 0.05; 
-                    const canvasSize = Math.floor(size + (padding * 2));
-                    
-                    canvas.width = canvasSize;
-                    canvas.height = canvasSize;
-                    const ctx = canvas.getContext('2d');
-
-                    // Draw White circular background to protect from QR noise
-                    ctx.beginPath();
-                    ctx.arc(canvasSize/2, canvasSize/2, canvasSize/2, 0, Math.PI * 2);
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fill();
-
-                    // Create clipping path for the image
-                    ctx.beginPath();
-                    ctx.arc(canvasSize/2, canvasSize/2, size/2, 0, Math.PI * 2);
-                    ctx.clip();
-
-                    // Draw image centered and scaled
-                    const srcX = (img.width - minDim) / 2;
-                    const srcY = (img.height - minDim) / 2;
-                    ctx.drawImage(img, srcX, srcY, minDim, minDim, padding, padding, size, size);
-
-                    const dataUrl = canvas.toDataURL('image/png');
-                    state.logoDataUrl = dataUrl;
-                    
-                    // Update UI
-                    document.getElementById('logo-preview-img').src = dataUrl;
-                    document.getElementById('logo-preview-img').classList.remove('hidden');
-                    document.getElementById('logo-placeholder-icon').classList.add('hidden');
-                    document.getElementById('clear-logo-btn').classList.remove('hidden');
-                    
-                    // Default Error Correction to High when using a logo for reliability
-                    document.getElementById('setting-ec').value = 'H';
-                    
-                    triggerPreviewUpdate();
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-            event.target.value = ''; // Reset input
-        }
-
-        function clearLogo() {
-            state.logoDataUrl = null;
-            document.getElementById('logo-preview-img').src = '';
-            document.getElementById('logo-preview-img').classList.add('hidden');
-            document.getElementById('logo-placeholder-icon').classList.remove('hidden');
-            document.getElementById('clear-logo-btn').classList.add('hidden');
-            triggerPreviewUpdate();
+            // Text Input Setup (No enter key blocking so users can add newlines)
+            const textInput = document.getElementById('text-content');
+            textInput.addEventListener('input', () => {
+                clearErrors();
+                triggerPreviewUpdate();
+            });
         }
 
         /**
@@ -547,7 +338,7 @@
 
         function clearErrors() {
             document.getElementById('single-url-error').classList.add('hidden');
-            document.getElementById('multi-url-error').classList.add('hidden');
+            document.getElementById('text-error').classList.add('hidden');
         }
 
         function validateAndGetPayload() {
@@ -557,33 +348,26 @@
             if (state.mode === 'single') {
                 payload = document.getElementById('single-url').value.trim();
                 if (!payload) {
-                    throw new Error({field: 'single-url-error', msg: "Please enter a destination URL."});
+                    throw {field: 'single-url-error', msg: "Please enter a destination URL."};
                 }
                 if (payload.startsWith('file://')) {
-                    throw new Error({field: 'single-url-error', msg: "Local file paths cannot be scanned by others. Use a hosted link."});
+                    throw {field: 'single-url-error', msg: "Local file paths cannot be scanned by others. Use a hosted link."};
                 }
                 if (!isValidURL(payload)) {
-                    throw new Error({field: 'single-url-error', msg: "Please enter a valid HTTP/HTTPS URL."});
+                    throw {field: 'single-url-error', msg: "Please enter a valid HTTP/HTTPS URL."};
                 }
-            } else {
-                const validLinks = state.links.filter(l => l.url.trim() !== '' && l.title.trim() !== '');
-                if (validLinks.length === 0) {
-                    throw new Error({field: 'multi-url-error', msg: "Please add at least one complete link."});
+            } else if (state.mode === 'text') {
+                const rawText = document.getElementById('text-content').value;
+                if (!rawText.trim()) {
+                    throw {field: 'text-error', msg: "Please enter some text to generate a QR code."};
                 }
-                validLinks.forEach(l => {
-                    if (!isValidURL(l.url)) {
-                        throw new Error({field: 'multi-url-error', msg: `Invalid URL: ${l.url}`});
-                    }
-                });
                 
-                // Magically encode links into the current URL to create an instant Hub
-                const baseUrl = window.location.href.split('?')[0];
-                const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(validLinks))));
-                payload = `${baseUrl}?hub=${base64Data}`;
+                // By adding newlines at the end, we force smartphone scanners (like Google Lens) 
+                // to treat this strictly as a "Text Document" to read/copy, rather than a "Web Search".
+                payload = rawText.trim() + "\n\n";
                 
-                // Extra validation for QR size limits (safeguard)
-                if (payload.length > 2500) {
-                    throw new Error({field: 'multi-url-error', msg: "Too many links! QR code capacity exceeded."});
+                if (payload.length > 2000) {
+                    showToast("Warning: Extremely long text may result in a dense QR code that is hard to scan.", "error");
                 }
             }
             return payload;
@@ -633,18 +417,6 @@
                 }
             };
 
-            // Fix Logo rendering over dots by explicitly configuring image options and passing valid image
-            if (state.logoDataUrl) {
-                options.image = state.logoDataUrl;
-                options.imageOptions = {
-                    margin: 10,
-                    imageSize: 0.25, // 25% of QR Code
-                    hideBackgroundDots: true
-                };
-            } else {
-                options.image = undefined; // Force empty state for clean re-renders
-            }
-
             return options;
         }
 
@@ -668,12 +440,11 @@
             if (state.mode === 'single') {
                 const payload = document.getElementById('single-url').value.trim();
                 if (payload && isValidURL(payload) && !payload.startsWith('file://')) return payload;
-            } else {
-                const validLinks = state.links.filter(l => l.url.trim() !== '' && l.title.trim() !== '');
-                if (validLinks.length > 0 && validLinks.every(l => isValidURL(l.url))) {
-                    const baseUrl = window.location.href.split('?')[0];
-                    const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(validLinks))));
-                    return `${baseUrl}?hub=${base64Data}`;
+            } else if (state.mode === 'text') {
+                const rawText = document.getElementById('text-content').value;
+                if (rawText.trim()) {
+                    // Append newline to prevent auto-search on mobile scanners
+                    return rawText.trim() + "\n\n";
                 }
             }
             return null;
@@ -685,9 +456,9 @@
                 await renderQR(payload);
                 showToast("QR Code successfully generated!", "success");
             } catch (err) {
-                if (err.message && err.message.field) {
-                    const errEl = document.getElementById(err.message.field);
-                    errEl.textContent = err.message.msg;
+                if (err && err.field) {
+                    const errEl = document.getElementById(err.field);
+                    errEl.textContent = err.msg;
                     errEl.classList.remove('hidden');
                 } else {
                     showToast(err.message || "Failed to generate QR code", "error");
@@ -698,18 +469,25 @@
         async function renderQR(payload) {
             const options = getRenderOptions(payload);
             
+            // Ensure high-resolution dimensions are always set for crisp downloads
+            options.width = 1024;
+            options.height = 1024;
+            options.margin = 10;
+            
             const container = document.getElementById('qr-canvas-container');
             const placeholder = document.getElementById('qr-placeholder');
             
             placeholder.classList.add('hidden');
             
             try {
-                state.qrCodeInstance.update(options);
+                // Clear any existing canvas/svg to prevent overlapping or stale renders
+                const existingElements = container.querySelectorAll('canvas, svg');
+                existingElements.forEach(el => el.remove());
                 
-                // Only append if it's not already in the container
-                if (!container.querySelector('canvas') && !container.querySelector('svg')) {
-                    await state.qrCodeInstance.append(container);
-                }
+                // Always create a fresh instance for 100% accuracy in payload and styles
+                state.qrCodeInstance = new QRCodeStyling(options);
+                
+                await state.qrCodeInstance.append(container);
                 
                 state.isGenerated = true;
             } catch (e) {
