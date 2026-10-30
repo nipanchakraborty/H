@@ -11,6 +11,9 @@
     <!-- QR Code Styling Library -->
     <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
 
+    <!-- HTML5 QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -72,7 +75,11 @@
         }
 
         /* Hide elements dynamically */
-        .hidden-collapse { display: none; }
+        .hidden-collapse { display: none !important; }
+
+        /* Scanner Library Cleanup */
+        #reader { border: none !important; width: 100%; height: 100%; }
+        #reader video { border-radius: 1rem; object-fit: cover; width: 100% !important; height: 100% !important; }
     </style>
 </head>
 <body class="bg-background text-textMain min-h-screen flex flex-col antialiased">
@@ -103,6 +110,9 @@
                 </button>
                 <button id="mode-text-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain" onclick="setMode('text')">
                     Plain Text
+                </button>
+                <button id="mode-scan-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain" onclick="setMode('scan')">
+                    Scan QR
                 </button>
             </div>
 
@@ -139,8 +149,45 @@
                 </div>
             </div>
 
+            <!-- Scan Panel -->
+            <div id="panel-scan" class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle hidden-collapse">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <i class="ph ph-camera text-primary"></i> Scanner
+                    </h2>
+                </div>
+                
+                <p class="text-xs text-textMuted mb-4 leading-relaxed">
+                    Point your camera at any QR code to instantly read its content, or upload an image from your device.
+                </p>
+
+                <div id="reader-container" class="w-full bg-surface rounded-2xl overflow-hidden border border-borderSubtle mb-6 relative aspect-square flex items-center justify-center max-w-[400px] mx-auto">
+                    <div id="reader"></div>
+                    <div id="reader-placeholder" class="absolute flex flex-col items-center justify-center text-textMuted pointer-events-none">
+                        <i class="ph ph-camera-slash text-4xl mb-2"></i>
+                        <span class="text-xs">Camera Off</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 max-w-[400px] mx-auto">
+                    <button id="btn-start-scan" onclick="startScanner()" class="flex-1 bg-primary hover:bg-primaryHover text-white rounded-[16px] py-3 font-semibold transition-colors flex justify-center items-center gap-2 btn-press">
+                        <i class="ph ph-video-camera"></i> Start Camera
+                    </button>
+                    <button id="btn-stop-scan" onclick="stopScanner()" class="flex-1 bg-surface hover:bg-borderSubtle text-error border border-borderSubtle/50 rounded-[16px] py-3 font-semibold transition-colors flex justify-center items-center gap-2 btn-press hidden-collapse">
+                        <i class="ph ph-stop-circle"></i> Stop
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <label class="inline-flex items-center text-sm font-medium text-textMuted hover:text-textMain cursor-pointer transition-colors px-4 py-2 rounded-full bg-surface border border-borderSubtle">
+                        <input type="file" id="qr-upload" accept="image/*" class="hidden" onchange="handleImageScan(event)">
+                        <i class="ph ph-image mr-2 text-lg"></i> Scan from Image
+                    </label>
+                </div>
+            </div>
+
             <!-- Customization Panel (Collapsible) -->
-            <div class="bg-card rounded-[28px] shadow-sm border border-borderSubtle/50 overflow-hidden">
+            <div id="panel-settings" class="bg-card rounded-[28px] shadow-sm border border-borderSubtle/50 overflow-hidden">
                 <button onclick="toggleSettings()" class="w-full p-6 flex justify-between items-center text-left hover:bg-surface/50 transition-colors focus:outline-none">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
                         <i class="ph ph-palette text-primary"></i> Appearance & Settings
@@ -195,34 +242,63 @@
             <!-- Sticky container for desktop -->
             <div class="sticky top-6 space-y-6">
                 
-                <div class="bg-card rounded-[32px] p-8 shadow-lg border border-borderSubtle/50 flex flex-col items-center">
-                    <h3 class="text-sm font-medium text-textMuted mb-6 uppercase tracking-wider">Live Preview</h3>
-                    
-                    <!-- QR Canvas Container -->
-                    <div id="qr-canvas-container" class="bg-surface p-4 rounded-[24px] shadow-inner w-full max-w-[280px] aspect-square flex items-center justify-center relative">
-                        <!-- Canvas injected by library -->
-                        <div id="qr-placeholder" class="text-textMuted flex flex-col items-center text-center absolute">
-                            <i class="ph ph-qr-code text-5xl mb-2"></i>
-                            <span class="text-xs font-medium">Enter Data<br>to generate</span>
+                <!-- Generator View -->
+                <div id="generator-preview-section">
+                    <div class="bg-card rounded-[32px] p-8 shadow-lg border border-borderSubtle/50 flex flex-col items-center">
+                        <h3 class="text-sm font-medium text-textMuted mb-6 uppercase tracking-wider">Live Preview</h3>
+                        
+                        <!-- QR Canvas Container -->
+                        <div id="qr-canvas-container" class="bg-surface p-4 rounded-[24px] shadow-inner w-full max-w-[280px] aspect-square flex items-center justify-center relative">
+                            <!-- Canvas injected by library -->
+                            <div id="qr-placeholder" class="text-textMuted flex flex-col items-center text-center absolute">
+                                <i class="ph ph-qr-code text-5xl mb-2"></i>
+                                <span class="text-xs font-medium">Enter Data<br>to generate</span>
+                            </div>
+                        </div>
+
+                        <div class="w-full mt-8 space-y-3">
+                            <button onclick="handleGenerate()" class="w-full bg-primary hover:bg-primaryHover text-white rounded-[20px] p-4 font-semibold transition-colors flex items-center justify-center gap-2 btn-press shadow-lg shadow-primary/20">
+                                <i class="ph ph-magic-wand"></i> Generate QR Code
+                            </button>
                         </div>
                     </div>
 
-                    <div class="w-full mt-8 space-y-3">
-                        <button onclick="handleGenerate()" class="w-full bg-primary hover:bg-primaryHover text-white rounded-[20px] p-4 font-semibold transition-colors flex items-center justify-center gap-2 btn-press shadow-lg shadow-primary/20">
-                            <i class="ph ph-magic-wand"></i> Generate QR Code
-                        </button>
+                    <div class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50 mt-6">
+                        <h3 class="text-sm font-medium text-textMuted mb-4">Export High-Res Image</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="downloadQR('png')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
+                                <i class="ph ph-file-png text-xl"></i> PNG
+                            </button>
+                            <button onclick="downloadQR('jpeg')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
+                                <i class="ph ph-file-jpg text-xl"></i> JPEG
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50">
-                    <h3 class="text-sm font-medium text-textMuted mb-4">Export High-Res Image</h3>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button onclick="downloadQR('png')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
-                            <i class="ph ph-file-png text-xl"></i> PNG
-                        </button>
-                        <button onclick="downloadQR('jpeg')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
-                            <i class="ph ph-file-jpg text-xl"></i> JPEG
-                        </button>
+                <!-- Scanner View -->
+                <div id="scanner-result-section" class="hidden-collapse">
+                    <div class="bg-card rounded-[32px] p-8 shadow-lg border border-borderSubtle/50 flex flex-col items-center">
+                        <h3 class="text-sm font-medium text-textMuted mb-6 uppercase tracking-wider">Scan Result</h3>
+                        
+                        <div class="w-full bg-surface p-6 rounded-[24px] shadow-inner border border-borderSubtle/50 min-h-[250px] flex flex-col items-center justify-center relative">
+                            <div id="scan-placeholder" class="text-textMuted flex flex-col items-center text-center">
+                                <i class="ph ph-scan text-5xl mb-2"></i>
+                                <span class="text-xs font-medium">Waiting for<br>QR Code</span>
+                            </div>
+                            <div id="scan-output-content" class="w-full h-full hidden flex flex-col justify-center">
+                                <p id="scan-text-display" class="text-sm text-textMain break-all whitespace-pre-wrap max-h-[300px] overflow-y-auto custom-scrollbar text-center"></p>
+                            </div>
+                        </div>
+
+                        <div id="scan-actions" class="w-full mt-8 grid grid-cols-2 gap-3 hidden">
+                            <button onclick="copyScanResult()" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 font-medium transition-colors flex items-center justify-center gap-2 btn-press border border-borderSubtle/50">
+                                <i class="ph ph-copy text-lg"></i> Copy
+                            </button>
+                            <button id="btn-open-link" onclick="openScanLink()" class="bg-primary hover:bg-primaryHover text-white rounded-[16px] py-3 font-medium transition-colors flex items-center justify-center gap-2 btn-press shadow-lg shadow-primary/20 hidden-collapse">
+                                <i class="ph ph-arrow-square-out text-lg"></i> Open Link
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -238,9 +314,12 @@
          * State & Configurations
          */
         const state = {
-            mode: 'single', // 'single' or 'text'
+            mode: 'single', // 'single', 'text', or 'scan'
             qrCodeInstance: null,
-            isGenerated: false
+            isGenerated: false,
+            scanner: null,
+            isScanning: false,
+            lastScannedText: ''
         };
 
         const DEBOUNCE_DELAY = 500;
@@ -259,21 +338,63 @@
             state.mode = mode;
             const singleBtn = document.getElementById('mode-single-btn');
             const textBtn = document.getElementById('mode-text-btn');
+            const scanBtn = document.getElementById('mode-scan-btn');
             const panelSingle = document.getElementById('panel-single');
             const panelText = document.getElementById('panel-text');
+            const panelScan = document.getElementById('panel-scan');
+            const panelSettings = document.getElementById('panel-settings');
+            
+            const generatorPreview = document.getElementById('generator-preview-section');
+            const scannerResult = document.getElementById('scanner-result-section');
+
+            // Reset styles
+            [singleBtn, textBtn, scanBtn].forEach(btn => {
+                btn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
+            });
+
+            // Stop scanner if leaving scan mode
+            if (mode !== 'scan' && state.isScanning) {
+                stopScanner();
+            }
 
             if (mode === 'single') {
-                singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
-                textBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
+                singleBtn.classList.add('bg-surface', 'text-textMain', 'shadow-sm');
+                singleBtn.classList.remove('text-textMuted', 'hover:text-textMain');
+                
                 panelSingle.classList.remove('hidden-collapse');
                 panelText.classList.add('hidden-collapse');
-            } else {
-                textBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
-                singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
+                panelScan.classList.add('hidden-collapse');
+                panelSettings.classList.remove('hidden-collapse');
+                
+                generatorPreview.classList.remove('hidden-collapse');
+                scannerResult.classList.add('hidden-collapse');
+                triggerPreviewUpdate();
+                
+            } else if (mode === 'text') {
+                textBtn.classList.add('bg-surface', 'text-textMain', 'shadow-sm');
+                textBtn.classList.remove('text-textMuted', 'hover:text-textMain');
+                
                 panelText.classList.remove('hidden-collapse');
                 panelSingle.classList.add('hidden-collapse');
+                panelScan.classList.add('hidden-collapse');
+                panelSettings.classList.remove('hidden-collapse');
+                
+                generatorPreview.classList.remove('hidden-collapse');
+                scannerResult.classList.add('hidden-collapse');
+                triggerPreviewUpdate();
+                
+            } else if (mode === 'scan') {
+                scanBtn.classList.add('bg-surface', 'text-textMain', 'shadow-sm');
+                scanBtn.classList.remove('text-textMuted', 'hover:text-textMain');
+                
+                panelScan.classList.remove('hidden-collapse');
+                panelSingle.classList.add('hidden-collapse');
+                panelText.classList.add('hidden-collapse');
+                panelSettings.classList.add('hidden-collapse'); // Hide settings in scan mode
+                
+                scannerResult.classList.remove('hidden-collapse');
+                generatorPreview.classList.add('hidden-collapse');
             }
-            triggerPreviewUpdate();
         }
 
         function toggleSettings() {
@@ -420,18 +541,38 @@
             return options;
         }
 
+        // Render Queue State Machine to prevent overlapping crashes
+        let isRendering = false;
+        let needsRender = false;
+        let pendingPayload = null;
+
+        async function processRenderQueue() {
+            if (isRendering || !needsRender) return;
+            isRendering = true;
+            needsRender = false;
+            
+            const payloadToRender = pendingPayload;
+            
+            try {
+                await renderQR(payloadToRender);
+            } catch(e) {
+                // Silent catch for auto-renders, error UI is handled in renderQR
+            } finally {
+                isRendering = false;
+                if (needsRender) {
+                    processRenderQueue();
+                }
+            }
+        }
+
         function triggerPreviewUpdate() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                // If there's valid data, automatically update preview. Otherwise, wait for manual generate.
-                try {
-                    // Try to validate silently
-                    const payload = getPayloadSilent();
-                    if (payload) {
-                        renderQR(payload);
-                    }
-                } catch(e) {
-                    // Do nothing on silent failure during typing
+                const payload = getPayloadSilent();
+                if (payload) {
+                    pendingPayload = payload;
+                    needsRender = true;
+                    processRenderQueue();
                 }
             }, DEBOUNCE_DELAY);
         }
@@ -443,7 +584,7 @@
             } else if (state.mode === 'text') {
                 const rawText = document.getElementById('text-content').value;
                 if (rawText.trim()) {
-                    // Append newline to prevent auto-search on mobile scanners
+                    // Append newlines to prevent auto-search on mobile scanners
                     return rawText.trim() + "\n\n";
                 }
             }
@@ -453,6 +594,15 @@
         async function handleGenerate() {
             try {
                 const payload = validateAndGetPayload();
+                
+                if (isRendering) {
+                    // If it is currently typing/rendering, queue it instead of crashing
+                    pendingPayload = payload;
+                    needsRender = true;
+                    showToast("Generating...", "info");
+                    return;
+                }
+                
                 await renderQR(payload);
                 showToast("QR Code successfully generated!", "success");
             } catch (err) {
@@ -480,9 +630,12 @@
             placeholder.classList.add('hidden');
             
             try {
-                // Clear any existing canvas/svg to prevent overlapping or stale renders
-                const existingElements = container.querySelectorAll('canvas, svg');
-                existingElements.forEach(el => el.remove());
+                // Safely clear any existing canvas/svg to prevent overlapping or stale renders
+                Array.from(container.children).forEach(child => {
+                    if (child.id !== 'qr-placeholder') {
+                        child.remove();
+                    }
+                });
                 
                 // Always create a fresh instance for 100% accuracy in payload and styles
                 state.qrCodeInstance = new QRCodeStyling(options);
@@ -491,9 +644,13 @@
                 
                 state.isGenerated = true;
             } catch (e) {
-                console.error(e);
+                console.error("Render failed:", e);
+                // Clean up any broken fragments if generation fails mid-way
+                Array.from(container.children).forEach(child => {
+                    if (child.id !== 'qr-placeholder') child.remove();
+                });
                 placeholder.classList.remove('hidden');
-                placeholder.innerHTML = `<i class="ph ph-warning-circle text-error text-4xl mb-2"></i><span class="text-xs text-error">Data too large or<br>generation failed</span>`;
+                placeholder.innerHTML = `<i class="ph ph-warning-circle text-error text-4xl mb-2"></i><span class="text-xs text-error text-center mt-2">Data too large or<br>generation failed</span>`;
                 state.isGenerated = false;
                 throw new Error("QR Generation failed. Try reducing data length.");
             }
@@ -528,6 +685,152 @@
             } catch (err) {
                 console.error("Export error:", err);
                 showToast("Download failed. Try regenerating the QR code.", "error");
+            }
+        }
+
+        /**
+         * Scanner Functionality
+         */
+        function initScanner() {
+            if (!state.scanner) {
+                state.scanner = new Html5Qrcode("reader");
+            }
+        }
+
+        async function startScanner() {
+            initScanner();
+            const btnStart = document.getElementById('btn-start-scan');
+            const btnStop = document.getElementById('btn-stop-scan');
+            const placeholder = document.getElementById('reader-placeholder');
+            
+            try {
+                placeholder.classList.add('hidden');
+                
+                await state.scanner.start(
+                    { facingMode: "environment" }, 
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0
+                    },
+                    onScanSuccess,
+                    (errorMessage) => {
+                        // ignore background scanning errors while it looks for a code
+                    }
+                );
+                
+                state.isScanning = true;
+                btnStart.classList.add('hidden-collapse');
+                btnStop.classList.remove('hidden-collapse');
+                showToast("Camera started. Point at a QR Code.", "info");
+
+            } catch (err) {
+                console.error(err);
+                placeholder.classList.remove('hidden');
+                showToast("Camera access denied or unavailable.", "error");
+            }
+        }
+
+        async function stopScanner() {
+            if (state.scanner && state.isScanning) {
+                try {
+                    await state.scanner.stop();
+                    state.isScanning = false;
+                    
+                    document.getElementById('btn-start-scan').classList.remove('hidden-collapse');
+                    document.getElementById('btn-stop-scan').classList.add('hidden-collapse');
+                    document.getElementById('reader-placeholder').classList.remove('hidden');
+                    
+                } catch (err) {
+                    console.error("Failed to stop scanner", err);
+                }
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            state.lastScannedText = decodedText;
+            
+            // Lock onto result
+            if (state.isScanning) {
+                stopScanner();
+                showToast("QR Code scanned successfully!", "success");
+            }
+
+            displayScanResult(decodedText);
+        }
+
+        async function handleImageScan(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            initScanner();
+            
+            if (state.isScanning) {
+                await stopScanner();
+            }
+
+            try {
+                const decodedText = await state.scanner.scanFileV2(file);
+                showToast("Image scanned successfully!", "success");
+                onScanSuccess(decodedText.decodedText, null);
+            } catch (err) {
+                showToast("No QR code found in the image.", "error");
+            }
+            
+            // Clear input so same file can be selected again
+            event.target.value = '';
+        }
+
+        function displayScanResult(text) {
+            const placeholder = document.getElementById('scan-placeholder');
+            const content = document.getElementById('scan-output-content');
+            const textDisplay = document.getElementById('scan-text-display');
+            const actions = document.getElementById('scan-actions');
+            const openBtn = document.getElementById('btn-open-link');
+
+            placeholder.classList.add('hidden');
+            content.classList.remove('hidden');
+            actions.classList.remove('hidden');
+            
+            // Clean trailing newlines we added previously for generated text
+            const cleanText = text.trim();
+            textDisplay.textContent = cleanText;
+
+            // Check if URL to show "Open Link" button
+            if (isValidURL(cleanText)) {
+                openBtn.classList.remove('hidden-collapse');
+            } else {
+                openBtn.classList.add('hidden-collapse');
+            }
+        }
+
+        function copyScanResult() {
+            if (!state.lastScannedText) return;
+            const textToCopy = state.lastScannedText.trim();
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast("Copied to clipboard!", "success");
+            }).catch(err => {
+                // Fallback
+                const textarea = document.createElement("textarea");
+                textarea.value = textToCopy;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast("Copied to clipboard!", "success");
+                } catch (e) {
+                    showToast("Failed to copy text.", "error");
+                }
+                document.body.removeChild(textarea);
+            });
+        }
+
+        function openScanLink() {
+            if (!state.lastScannedText) return;
+            const url = state.lastScannedText.trim();
+            if (isValidURL(url)) {
+                window.open(url, '_blank', 'noopener,noreferrer');
             }
         }
 
