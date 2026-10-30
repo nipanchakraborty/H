@@ -1,433 +1,835 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Link QR Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QR Code Generator</title>
     
-    <!-- Tailwind CSS for modern, responsive styling -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Phosphor Icons for modern UI elements -->
+    <!-- QR Code Styling Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+
+    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <!-- QRCode.js Library for client-side QR generation -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#0A0A0C',
+                        card: '#17171B',
+                        surface: '#202027',
+                        primary: '#5C6AC4', // Restrained Violet/Blue
+                        primaryHover: '#4d59a8',
+                        textMain: '#FFFFFF',
+                        textMuted: '#A1A1AA',
+                        borderSubtle: '#2E2E36',
+                        error: '#EF4444'
+                    },
+                    borderRadius: {
+                        '2xl': '1.25rem',
+                        '3xl': '1.75rem',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* Custom scrollbar for dark theme */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
-        /* Smooth transitions */
-        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
-
-        /* Glassmorphism utilities */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-        }
-        
-        .glass-input {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff;
-        }
-        .glass-input:focus {
-            border-color: rgba(99, 102, 241, 0.5); /* Indigo 500 */
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
-            outline: none;
-        }
-
         body {
-            background-color: #020617;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,0.2) 0, transparent 50%);
-            background-attachment: fixed;
+            background-color: theme('colors.background');
+            color: theme('colors.textMain');
+            font-family: theme('fontFamily.sans');
+            -webkit-tap-highlight-color: transparent;
         }
+
+        /* Custom Scrollbar for a premium feel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: theme('colors.surface'); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: theme('colors.borderSubtle'); }
+
+        /* Smooth state transitions */
+        .btn-press { transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s; }
+        .btn-press:active { transform: scale(0.97); }
+
+        /* Responsive Canvas container */
+        #qr-canvas-container canvas, #qr-canvas-container svg {
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100%;
+            border-radius: 1rem;
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Hide elements dynamically */
+        .hidden-collapse { display: none; }
     </style>
 </head>
-<body class="text-slate-200 min-h-screen font-sans antialiased pb-12">
+<body class="min-h-screen flex flex-col antialiased">
 
-    <!-- Navbar -->
-    <nav class="glass-panel sticky top-0 z-10 border-b-0 border-t-0 border-l-0 border-r-0 border-b-[1px] border-white/10 rounded-none shadow-none">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center gap-2 text-indigo-400">
-                    <i class="ph-fill ph-qr-code text-3xl drop-shadow-[0_0_8px_rgba(129,140,248,0.5)]"></i>
-                    <span class="font-bold text-xl tracking-tight text-white">QRMix</span>
-                </div>
-                <div class="text-sm text-slate-400 font-medium bg-white/5 px-3 py-1 rounded-full border border-white/10">100% Client-Side</div>
+    <!-- Header -->
+    <header class="pt-12 pb-6 px-6 max-w-5xl mx-auto w-full">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-4xl font-bold tracking-tight mb-1 text-textMain">QR Generator</h1>
+                <p class="text-textMuted text-sm">Create, customize, and export instantly.</p>
+            </div>
+            <div class="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center">
+                <i class="ph ph-qr-code text-2xl"></i>
             </div>
         </div>
-    </nav>
+    </header>
 
-    <!-- Main Content -->
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    <!-- Main Workspace -->
+    <main class="flex-grow px-6 pb-12 max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         
-        <div class="mb-8 text-center sm:text-left">
-            <h1 class="text-3xl font-extrabold text-white drop-shadow-md">Multi-Link QR Code Generator</h1>
-            <p class="mt-2 text-slate-400 max-w-2xl">Bundle multiple links into a single QR code. Scanning the code opens a clean list of your titles. Add a custom PNG logo, perfectly shaped into a circle.</p>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Left Column: Inputs & Settings -->
+        <div class="lg:col-span-7 space-y-6">
             
-            <!-- Left Panel: Configuration -->
-            <div class="lg:col-span-7 space-y-6">
-                
-                <!-- Links Section -->
-                <div class="glass-panel p-6 rounded-2xl">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-bold flex items-center gap-2 text-white">
-                            <i class="ph ph-link text-xl text-indigo-400"></i> Your Links
-                        </h2>
-                        <span class="text-xs font-semibold px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">Embedded Data</span>
-                    </div>
-                    
-                    <div id="links-container" class="space-y-3 mb-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                        <!-- Dynamic Link Inputs will be injected here -->
-                    </div>
+            <!-- Mode Selector -->
+            <div class="bg-card rounded-[28px] p-2 flex gap-2 shadow-sm border border-borderSubtle/50">
+                <button id="mode-single-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm" onclick="setMode('single')">
+                    Single Link
+                </button>
+                <button id="mode-multi-btn" class="flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain" onclick="setMode('multi')">
+                    Multi-Link Hub
+                </button>
+            </div>
 
-                    <button onclick="addLink()" class="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-white/20 text-indigo-300 hover:bg-white/5 hover:border-indigo-400/50 rounded-xl font-medium transition-all">
-                        <i class="ph ph-plus-circle text-lg"></i> Add Another Link
+            <!-- Single Link Input Panel -->
+            <div id="panel-single" class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="ph ph-link text-primary"></i> Destination URL
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <input type="url" id="single-url" placeholder="https://example.com" class="w-full bg-surface text-textMain rounded-2xl p-4 border border-borderSubtle focus:border-primary outline-none transition-colors placeholder-textMuted/50">
+                        <p id="single-url-error" class="text-error text-xs mt-2 ml-2 hidden"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi Link Input Panel -->
+            <div id="panel-multi" class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50 hidden-collapse">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <i class="ph ph-list-dashes text-primary"></i> Link List
+                    </h2>
+                    <button onclick="addLinkEntry()" class="text-primary text-sm font-medium hover:underline bg-primary/10 px-3 py-1.5 rounded-full">
+                        + Add Link
                     </button>
                 </div>
+                
+                <p class="text-xs text-textMuted mb-4 leading-relaxed">
+                    Multiple links cannot fit directly into one standard QR code. We'll generate a lightweight "Hub" HTML page for you. Download it, host it (e.g., GitHub Pages), and enter the public URL below to create your QR.
+                </p>
 
-                <!-- Logo Section -->
-                <div class="glass-panel p-6 rounded-2xl">
-                    <h2 class="text-lg font-bold flex items-center gap-2 mb-4 text-white">
-                        <i class="ph ph-image text-xl text-indigo-400"></i> Center Logo (PNG)
-                    </h2>
-                    
-                    <div class="flex items-center gap-4">
-                        <div class="flex-1">
-                            <label for="logo-upload" class="flex flex-col items-center justify-center w-full h-32 border-2 border-white/20 border-dashed rounded-xl cursor-pointer bg-black/20 hover:bg-white/5 transition-all group">
-                                <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <i class="ph ph-upload-simple text-3xl text-slate-400 group-hover:text-indigo-400 mb-2 transition-all"></i>
-                                    <p class="text-sm text-slate-300 font-medium"><span class="font-semibold text-indigo-400">Click to upload</span> or drag and drop</p>
-                                    <p class="text-xs text-slate-500 mt-1">PNG files only (Transparent bg)</p>
-                                </div>
-                                <input id="logo-upload" type="file" class="hidden" accept="image/png" />
-                            </label>
-                        </div>
-                        
-                        <!-- Logo Preview Area -->
-                        <div id="logo-preview-container" class="hidden flex-col items-center justify-center h-32 w-32 border border-white/10 rounded-xl bg-black/30 shadow-inner relative overflow-hidden">
-                            <img id="logo-preview-img" src="" alt="Logo Preview" class="w-20 h-20 object-contain rounded-full border border-white/20 shadow-lg" />
-                            <button onclick="removeLogo()" class="absolute top-1 right-1 bg-red-500/20 text-red-400 p-1 rounded-full hover:bg-red-500/40 transition-all backdrop-blur-md" title="Remove Logo">
-                                <i class="ph ph-x"></i>
-                            </button>
-                        </div>
-                    </div>
+                <div id="link-entries-container" class="space-y-3 mb-6">
+                    <!-- Dynamic link entries go here -->
                 </div>
 
-                <!-- Generate Button -->
-                <button onclick="generateQR()" class="w-full flex items-center justify-center gap-2 py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-indigo-500 hover:to-purple-500 shadow-[0_0_20px_rgba(79,70,229,0.4)] transform active:scale-[0.99] transition-all border border-white/10">
-                    <i class="ph ph-qr-code text-2xl"></i> Generate QR Code
-                </button>
-
+                <div class="border-t border-borderSubtle pt-6 space-y-4">
+                    <div>
+                        <button onclick="downloadHubHTML()" class="w-full bg-surface hover:bg-borderSubtle text-textMain border border-borderSubtle rounded-2xl p-4 font-semibold transition-colors flex items-center justify-center gap-2 btn-press">
+                            <i class="ph ph-download-simple"></i> 1. Download Link Hub (HTML)
+                        </button>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-textMuted ml-2 mb-2">2. Enter your hosted Hub URL:</label>
+                        <input type="url" id="multi-hub-url" placeholder="https://your-site.com/hub.html" class="w-full bg-surface text-textMain rounded-2xl p-4 border border-borderSubtle focus:border-primary outline-none transition-colors placeholder-textMuted/50">
+                        <p id="multi-url-error" class="text-error text-xs mt-2 ml-2 hidden"></p>
+                    </div>
+                </div>
             </div>
 
-            <!-- Right Panel: Output & Preview -->
-            <div class="lg:col-span-5">
-                <div class="glass-panel p-6 rounded-2xl sticky top-24">
-                    <h2 class="text-lg font-bold flex items-center gap-2 mb-6 text-white">
-                        <i class="ph ph-scan text-xl text-indigo-400"></i> Output Preview
-                    </h2>
+            <!-- Center Logo Panel -->
+            <div class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="ph ph-image-square text-primary"></i> Center Logo
+                </h2>
+                <p class="text-xs text-textMuted mb-4">Upload a PNG/JPG. It will be cropped into a circle automatically.</p>
+                
+                <div class="flex items-center gap-4">
+                    <div id="logo-preview-container" class="w-16 h-16 rounded-full bg-surface border border-borderSubtle flex items-center justify-center overflow-hidden shrink-0 relative group">
+                        <i class="ph ph-image text-textMuted text-xl" id="logo-placeholder-icon"></i>
+                        <img id="logo-preview-img" src="" class="w-full h-full object-cover hidden">
+                        <button id="clear-logo-btn" onclick="clearLogo()" class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden cursor-pointer">
+                            <i class="ph ph-trash text-white text-lg"></i>
+                        </button>
+                    </div>
                     
-                    <div class="flex items-center justify-center bg-black/40 rounded-xl p-8 mb-6 border border-white/5 shadow-inner">
-                        <!-- Canvas Container -->
-                        <div class="relative w-full max-w-[300px] aspect-square bg-white rounded-lg shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-slate-200 flex items-center justify-center overflow-hidden">
-                            
-                            <!-- Placeholder -->
-                            <div id="qr-placeholder" class="text-center text-slate-400 flex flex-col items-center gap-2">
-                                <i class="ph ph-qr-code text-6xl opacity-30"></i>
-                                <span class="text-sm font-medium">QR Code will appear here</span>
-                            </div>
-                            
-                            <!-- Actual Canvas -->
-                            <canvas id="qr-canvas" class="hidden w-full h-full object-contain"></canvas>
-
-                        </div>
+                    <div class="flex-grow">
+                        <input type="file" id="logo-upload" accept="image/png, image/jpeg" class="hidden" onchange="handleLogoUpload(event)">
+                        <label for="logo-upload" class="bg-surface hover:bg-borderSubtle text-textMain text-sm font-medium py-2.5 px-5 rounded-full cursor-pointer transition-colors border border-borderSubtle inline-block btn-press">
+                            Choose Image
+                        </label>
                     </div>
-
-                    <div class="space-y-3">
-                        <p class="text-sm font-semibold text-slate-300 mb-2">Download Options:</p>
-                        <div class="grid grid-cols-2 gap-3">
-                            <button id="btn-png" disabled onclick="downloadQR('png')" class="flex items-center justify-center gap-2 py-2.5 px-4 bg-white/10 text-white border border-white/20 rounded-lg font-medium hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all backdrop-blur-sm">
-                                <i class="ph ph-download-simple"></i> PNG File
-                            </button>
-                            <button id="btn-jpg" disabled onclick="downloadQR('jpg')" class="flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-lg font-medium hover:bg-indigo-600/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all backdrop-blur-sm">
-                                <i class="ph ph-download-simple"></i> JPEG File
-                            </button>
-                        </div>
-                    </div>
-
                 </div>
+            </div>
+
+            <!-- Customization Panel (Collapsible) -->
+            <div class="bg-card rounded-[28px] shadow-sm border border-borderSubtle/50 overflow-hidden">
+                <button onclick="toggleSettings()" class="w-full p-6 flex justify-between items-center text-left hover:bg-surface/50 transition-colors focus:outline-none">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <i class="ph ph-palette text-primary"></i> Appearance & Settings
+                    </h2>
+                    <i class="ph ph-caret-down text-textMuted transition-transform" id="settings-chevron"></i>
+                </button>
+                
+                <div id="settings-content" class="px-6 pb-6 hidden-collapse space-y-5">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-textMuted mb-2">Foreground Color</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="color-fg" value="#ffffff" class="w-10 h-10 rounded cursor-pointer bg-transparent border-0 p-0" onchange="triggerPreviewUpdate()">
+                                <span class="text-sm font-mono text-textMuted" id="color-fg-label">#FFFFFF</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-textMuted mb-2">Background Color</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="color-bg" value="#202027" class="w-10 h-10 rounded cursor-pointer bg-transparent border-0 p-0" onchange="triggerPreviewUpdate()">
+                                <span class="text-sm font-mono text-textMuted" id="color-bg-label">#202027</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-textMuted mb-2">Error Correction Level</label>
+                        <select id="setting-ec" class="w-full bg-surface text-textMain rounded-xl p-3 border border-borderSubtle focus:border-primary outline-none appearance-none" onchange="triggerPreviewUpdate()">
+                            <option value="L">Low (7%)</option>
+                            <option value="M" selected>Medium (15%) - Default</option>
+                            <option value="Q">Quartile (25%)</option>
+                            <option value="H">High (30%) - Best for Logos</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-textMuted mb-2">Dot Style</label>
+                        <select id="setting-dots" class="w-full bg-surface text-textMain rounded-xl p-3 border border-borderSubtle focus:border-primary outline-none appearance-none" onchange="triggerPreviewUpdate()">
+                            <option value="square" selected>Square (Classic)</option>
+                            <option value="dots">Dots</option>
+                            <option value="rounded">Rounded</option>
+                            <option value="extra-rounded">Extra Rounded</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Live Preview & Export -->
+        <div class="lg:col-span-5 relative">
+            <!-- Sticky container for desktop -->
+            <div class="sticky top-6 space-y-6">
+                
+                <div class="bg-card rounded-[32px] p-8 shadow-lg border border-borderSubtle/50 flex flex-col items-center">
+                    <h3 class="text-sm font-medium text-textMuted mb-6 uppercase tracking-wider">Live Preview</h3>
+                    
+                    <!-- QR Canvas Container -->
+                    <div id="qr-canvas-container" class="bg-surface p-4 rounded-[24px] shadow-inner w-full max-w-[280px] aspect-square flex items-center justify-center relative">
+                        <!-- Canvas injected by library -->
+                        <div id="qr-placeholder" class="text-textMuted flex flex-col items-center text-center absolute">
+                            <i class="ph ph-qr-code text-5xl mb-2"></i>
+                            <span class="text-xs font-medium">Enter URL<br>to generate</span>
+                        </div>
+                    </div>
+
+                    <div class="w-full mt-8 space-y-3">
+                        <button onclick="handleGenerate()" class="w-full bg-primary hover:bg-primaryHover text-white rounded-[20px] p-4 font-semibold transition-colors flex items-center justify-center gap-2 btn-press shadow-lg shadow-primary/20">
+                            <i class="ph ph-magic-wand"></i> Generate QR Code
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-card rounded-[28px] p-6 shadow-sm border border-borderSubtle/50">
+                    <h3 class="text-sm font-medium text-textMuted mb-4">Export High-Res Image</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="downloadQR('png')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
+                            <i class="ph ph-file-png text-xl"></i> PNG
+                        </button>
+                        <button onclick="downloadQR('jpeg')" class="bg-surface hover:bg-borderSubtle text-textMain rounded-[16px] py-3 px-2 font-medium transition-colors flex flex-col items-center justify-center gap-1 btn-press border border-borderSubtle/50">
+                            <i class="ph ph-file-jpg text-xl"></i> JPEG
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
 
-    <!-- Global Toast Notification System -->
-    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-[150%] opacity-0 glass-panel border-white/20 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.8)] font-medium text-sm transition-all duration-300 z-50 flex items-center gap-2">
-        <i class="ph-fill ph-info text-indigo-400"></i>
-        <span id="toast-message">Message here</span>
-    </div>
+    <!-- Custom Toast Container -->
+    <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Application Logic -->
     <script>
-        // State
-        let links = [
-            { title: '', url: '' }
-        ];
-        let logoDataUrl = null;
+        /**
+         * State & Configurations
+         */
+        const state = {
+            mode: 'single', // 'single' or 'multi'
+            logoDataUrl: null,
+            links: [
+                { id: generateId(), title: '', url: '' }
+            ],
+            qrCodeInstance: null,
+            isGenerated: false
+        };
+
+        const DEBOUNCE_DELAY = 500;
+        let debounceTimer;
+
+        // Initialize QR Code Styling instance (but don't render yet)
+        state.qrCodeInstance = new QRCodeStyling({
+            width: 1024,
+            height: 1024,
+            type: "canvas",
+            data: "https://example.com",
+            margin: 10,
+            qrOptions: { typeNumber: 0, mode: "Byte", errorCorrectionLevel: "M" },
+            imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 8, crossOrigin: "anonymous" },
+            dotsOptions: { type: "square", color: "#ffffff" },
+            backgroundOptions: { color: "#202027" }
+        });
 
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
-            renderLinks();
-            setupLogoUpload();
+            renderLinkEntries();
+            setupColorSync();
+            setupInputListeners();
         });
 
-        // ---------------------------------------------------------
-        // Link Management
-        // ---------------------------------------------------------
-        
-        function renderLinks() {
-            const container = document.getElementById('links-container');
-            container.innerHTML = '';
-            
-            links.forEach((link, index) => {
-                const isOnlyLink = links.length === 1;
-                
-                container.innerHTML += `
-                    <div class="flex items-start gap-3 bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all group">
-                        <div class="flex flex-col gap-1 items-center justify-center pt-2 text-slate-500 group-hover:text-slate-400">
-                            <i class="ph-fill ph-dots-six-vertical"></i>
-                            <span class="text-xs font-bold">${index + 1}</span>
-                        </div>
-                        <div class="flex-1 space-y-2">
-                            <div>
-                                <input type="text" placeholder="Display Title (e.g. My Portfolio)" value="${escapeHTML(link.title)}" oninput="updateLink(${index}, 'title', this.value)" class="w-full glass-input p-2.5 rounded-lg text-sm transition-all placeholder-slate-400">
-                            </div>
-                            <div>
-                                <input type="url" placeholder="URL Target (e.g. https://example.com/file.pdf)" value="${escapeHTML(link.url)}" oninput="updateLink(${index}, 'url', this.value)" class="w-full glass-input p-2.5 rounded-lg text-sm transition-all text-indigo-300 placeholder-slate-400">
-                            </div>
-                        </div>
-                        <button onclick="removeLink(${index})" class="${isOnlyLink ? 'opacity-20 cursor-not-allowed' : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'} p-2 rounded-lg transition-all" title="Remove Link">
-                            <i class="ph-fill ph-trash text-xl"></i>
-                        </button>
-                    </div>
-                `;
-            });
-        }
+        /**
+         * UI Toggles & Interactions
+         */
+        function setMode(mode) {
+            state.mode = mode;
+            const singleBtn = document.getElementById('mode-single-btn');
+            const multiBtn = document.getElementById('mode-multi-btn');
+            const panelSingle = document.getElementById('panel-single');
+            const panelMulti = document.getElementById('panel-multi');
 
-        function addLink() {
-            links.push({ title: '', url: '' });
-            renderLinks();
-            const container = document.getElementById('links-container');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function removeLink(index) {
-            if (links.length > 1) {
-                links.splice(index, 1);
-                renderLinks();
+            if (mode === 'single') {
+                // Style buttons
+                singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
+                multiBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
+                // Show/hide panels
+                panelSingle.classList.remove('hidden-collapse');
+                panelMulti.classList.add('hidden-collapse');
             } else {
-                showToast("You need at least one link.");
+                multiBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors bg-surface text-textMain shadow-sm";
+                singleBtn.className = "flex-1 py-3 px-4 rounded-[20px] font-medium text-sm transition-colors text-textMuted hover:text-textMain";
+                panelMulti.classList.remove('hidden-collapse');
+                panelSingle.classList.add('hidden-collapse');
+            }
+            triggerPreviewUpdate();
+        }
+
+        function toggleSettings() {
+            const content = document.getElementById('settings-content');
+            const chevron = document.getElementById('settings-chevron');
+            if (content.classList.contains('hidden-collapse')) {
+                content.classList.remove('hidden-collapse');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                content.classList.add('hidden-collapse');
+                chevron.style.transform = 'rotate(0deg)';
             }
         }
 
-        function updateLink(index, field, value) {
-            links[index][field] = value;
-        }
+        function setupColorSync() {
+            const colorFg = document.getElementById('color-fg');
+            const colorFgLabel = document.getElementById('color-fg-label');
+            const colorBg = document.getElementById('color-bg');
+            const colorBgLabel = document.getElementById('color-bg-label');
 
-        // ---------------------------------------------------------
-        // Logo Management
-        // ---------------------------------------------------------
-
-        function setupLogoUpload() {
-            const uploadInput = document.getElementById('logo-upload');
-            
-            uploadInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                if (file.type !== 'image/png') {
-                    showToast("Please upload a valid PNG file.");
-                    this.value = '';
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    logoDataUrl = event.target.result;
-                    document.getElementById('logo-preview-img').src = logoDataUrl;
-                    document.getElementById('logo-preview-container').classList.remove('hidden');
-                    document.getElementById('logo-preview-container').classList.add('flex');
-                    showToast("Logo uploaded successfully.");
-                };
-                reader.onerror = () => showToast("Error reading file.");
-                reader.readAsDataURL(file);
+            colorFg.addEventListener('input', (e) => {
+                colorFgLabel.textContent = e.target.value.toUpperCase();
+            });
+            colorBg.addEventListener('input', (e) => {
+                colorBgLabel.textContent = e.target.value.toUpperCase();
             });
         }
 
-        function removeLogo() {
-            logoDataUrl = null;
-            document.getElementById('logo-upload').value = '';
-            document.getElementById('logo-preview-container').classList.add('hidden');
-            document.getElementById('logo-preview-container').classList.remove('flex');
-            showToast("Logo removed.");
+        function setupInputListeners() {
+            const inputs = [
+                document.getElementById('single-url'),
+                document.getElementById('multi-hub-url')
+            ];
+            inputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    clearErrors();
+                    triggerPreviewUpdate();
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGenerate();
+                    }
+                });
+            });
         }
 
-        // ---------------------------------------------------------
-        // QR Code Generation Pipeline
-        // ---------------------------------------------------------
+        /**
+         * Link List Management (Multi-Mode)
+         */
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
 
-        async function generateQR() {
-            const canvas = document.getElementById('qr-canvas');
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        function addLinkEntry() {
+            state.links.push({ id: generateId(), title: '', url: '' });
+            renderLinkEntries();
+        }
+
+        function removeLinkEntry(id) {
+            if (state.links.length <= 1) {
+                showToast("You need at least one link.", "error");
+                return;
+            }
+            state.links = state.links.filter(link => link.id !== id);
+            renderLinkEntries();
+            triggerPreviewUpdate();
+        }
+
+        function updateLink(id, field, value) {
+            const link = state.links.find(l => l.id === id);
+            if (link) {
+                link[field] = value;
+                triggerPreviewUpdate();
+            }
+        }
+
+        function renderLinkEntries() {
+            const container = document.getElementById('link-entries-container');
+            container.innerHTML = '';
             
-            const btnPng = document.getElementById('btn-png');
-            const btnJpg = document.getElementById('btn-jpg');
-            const placeholder = document.getElementById('qr-placeholder');
+            state.links.forEach((link, index) => {
+                const row = document.createElement('div');
+                row.className = "flex gap-2 items-start bg-background p-3 rounded-2xl border border-borderSubtle";
+                row.innerHTML = `
+                    <div class="flex-grow space-y-2">
+                        <input type="text" placeholder="Title (e.g. My Portfolio)" value="${escapeHTML(link.title)}" 
+                               oninput="updateLink('${link.id}', 'title', this.value)"
+                               class="w-full bg-transparent text-sm text-textMain rounded px-2 py-1 outline-none placeholder-textMuted/50 border-b border-transparent focus:border-primary transition-colors">
+                        <input type="url" placeholder="https://..." value="${escapeHTML(link.url)}" 
+                               oninput="updateLink('${link.id}', 'url', this.value)"
+                               class="w-full bg-transparent text-sm text-textMuted rounded px-2 py-1 outline-none placeholder-textMuted/50 border-b border-transparent focus:border-primary transition-colors">
+                    </div>
+                    <button onclick="removeLinkEntry('${link.id}')" class="p-2 text-textMuted hover:text-error transition-colors mt-2" title="Remove Link">
+                        <i class="ph ph-trash text-lg"></i>
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+        }
 
-            // 1. Validation
-            const validLinks = links.filter(l => l.url.trim() !== '' && l.title.trim() !== '');
-            if(validLinks.length === 0) {
-                showToast("Please enter at least one valid link.");
+        /**
+         * Logo Handling (Circular Crop using Canvas)
+         */
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!['image/png', 'image/jpeg'].includes(file.type)) {
+                showToast("Only PNG and JPEG images are supported.", "error");
                 return;
             }
 
-            for (let l of validLinks) {
-                if (!/^https?:\/\//i.test(l.url.trim())) l.url = 'https://' + l.url.trim(); 
-            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Create an offscreen canvas to crop the image into a circle
+                    const canvas = document.createElement('canvas');
+                    
+                    // Limit max size to prevent huge data URIs from crashing the QR library
+                    const MAX_SIZE = 256;
+                    const minDim = Math.min(img.width, img.height);
+                    const scale = minDim > MAX_SIZE ? MAX_SIZE / minDim : 1;
+                    const size = Math.floor(minDim * scale);
+                    
+                    // Add padding to ensure it fits nicely in the QR quiet zone
+                    const padding = size * 0.05; 
+                    const canvasSize = Math.floor(size + (padding * 2));
+                    
+                    canvas.width = canvasSize;
+                    canvas.height = canvasSize;
+                    const ctx = canvas.getContext('2d');
 
-            // 2. Build Ultra-Minified Embedded HTML Content (Dark Glassy Theme)
-            // Using minimal CSS to achieve a glossy dark look while preserving byte space
-            let miniHtml = `<style>body{background:#000;margin:0;padding:5%}a{display:block;padding:15px;margin-bottom:15px;background:linear-gradient(145deg,#222,#111);color:#fff;text-decoration:none;border-radius:12px;text-align:center;font-family:sans-serif;border:1px solid #333;box-shadow:0 4px 10px rgba(0,0,0,0.5)}</style>`;
-            
-            validLinks.forEach(l => {
-                const safeUrl = l.url.replace(/"/g, "%22");
-                miniHtml += `<a href="${safeUrl}">${escapeHTML(l.title)}</a>`;
-            });
+                    // Draw White circular background to protect from QR noise
+                    ctx.beginPath();
+                    ctx.arc(canvasSize/2, canvasSize/2, canvasSize/2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fill();
 
-            // Base64 encoding is significantly more space-efficient for QR codes than URI encoding
-            const utf8Bytes = unescape(encodeURIComponent(miniHtml));
-            const qrText = 'data:text/html;base64,' + btoa(utf8Bytes);
+                    // Create clipping path for the image
+                    ctx.beginPath();
+                    ctx.arc(canvasSize/2, canvasSize/2, size/2, 0, Math.PI * 2);
+                    ctx.clip();
 
+                    // Draw image centered and scaled
+                    const srcX = (img.width - minDim) / 2;
+                    const srcY = (img.height - minDim) / 2;
+                    ctx.drawImage(img, srcX, srcY, minDim, minDim, padding, padding, size, size);
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    state.logoDataUrl = dataUrl;
+                    
+                    // Update UI
+                    document.getElementById('logo-preview-img').src = dataUrl;
+                    document.getElementById('logo-preview-img').classList.remove('hidden');
+                    document.getElementById('logo-placeholder-icon').classList.add('hidden');
+                    document.getElementById('clear-logo-btn').classList.remove('hidden');
+                    
+                    // Default Error Correction to High when using a logo for reliability
+                    document.getElementById('setting-ec').value = 'H';
+                    
+                    triggerPreviewUpdate();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = ''; // Reset input
+        }
+
+        function clearLogo() {
+            state.logoDataUrl = null;
+            document.getElementById('logo-preview-img').src = '';
+            document.getElementById('logo-preview-img').classList.add('hidden');
+            document.getElementById('logo-placeholder-icon').classList.remove('hidden');
+            document.getElementById('clear-logo-btn').classList.add('hidden');
+            triggerPreviewUpdate();
+        }
+
+        /**
+         * Validation & Processing
+         */
+        function isValidURL(string) {
             try {
-                const tempCanvas = document.createElement('canvas');
-                // Use 'L' level (7% error correction) to MAXIMIZE data capacity to the absolute limit.
-                await QRCode.toCanvas(tempCanvas, qrText, {
-                    width: 1024,
-                    margin: 1,
-                    color: { dark: '#000000', light: '#ffffff' },
-                    errorCorrectionLevel: 'L' 
-                });
+                const url = new URL(string);
+                return url.protocol === "http:" || url.protocol === "https:";
+            } catch (_) {
+                return false;  
+            }
+        }
 
-                canvas.width = tempCanvas.width;
-                canvas.height = tempCanvas.height;
+        function clearErrors() {
+            document.getElementById('single-url-error').classList.add('hidden');
+            document.getElementById('multi-url-error').classList.add('hidden');
+        }
 
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(tempCanvas, 0, 0);
+        function validateAndGetPayload() {
+            clearErrors();
+            let payload = "";
 
-                // 3. Superimpose Smaller Circular Logo to fit 'L' error correction limits safely
-                if (logoDataUrl) {
-                    await new Promise((resolve, reject) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            // Logo size set to 18% width (approx 3.2% area), well within 7% 'L' tolerance
-                            const logoSize = canvas.width * 0.18; 
-                            const cx = canvas.width / 2;
-                            const cy = canvas.height / 2;
-
-                            ctx.beginPath();
-                            ctx.arc(cx, cy, (logoSize / 2) + 8, 0, 2 * Math.PI);
-                            ctx.fillStyle = '#ffffff';
-                            ctx.fill();
-
-                            ctx.save();
-                            ctx.beginPath();
-                            ctx.arc(cx, cy, logoSize / 2, 0, 2 * Math.PI);
-                            ctx.closePath();
-                            ctx.clip();
-                            ctx.drawImage(img, cx - logoSize/2, cy - logoSize/2, logoSize, logoSize);
-                            ctx.restore();
-
-                            ctx.beginPath();
-                            ctx.arc(cx, cy, logoSize / 2, 0, 2 * Math.PI);
-                            ctx.lineWidth = 6;
-                            ctx.strokeStyle = '#4f46e5'; 
-                            ctx.stroke();
-                            
-                            resolve();
-                        };
-                        img.onerror = () => reject(new Error("Logo load failed"));
-                        img.src = logoDataUrl;
-                    });
+            if (state.mode === 'single') {
+                payload = document.getElementById('single-url').value.trim();
+                if (!payload) {
+                    throw new Error({field: 'single-url-error', msg: "Please enter a destination URL."});
                 }
+                if (payload.startsWith('file://')) {
+                    throw new Error({field: 'single-url-error', msg: "Local file paths cannot be scanned by others. Use a hosted link."});
+                }
+                if (!isValidURL(payload)) {
+                    throw new Error({field: 'single-url-error', msg: "Please enter a valid HTTP/HTTPS URL."});
+                }
+            } else {
+                payload = document.getElementById('multi-hub-url').value.trim();
+                if (!payload) {
+                    throw new Error({field: 'multi-url-error', msg: "Please enter the public URL where you hosted the Hub HTML."});
+                }
+                if (!isValidURL(payload)) {
+                    throw new Error({field: 'multi-url-error', msg: "Please enter a valid HTTP/HTTPS URL."});
+                }
+            }
+            return payload;
+        }
 
-                placeholder.classList.add('hidden');
-                canvas.classList.remove('hidden');
-                btnPng.disabled = false;
-                btnJpg.disabled = false;
-                
-                showToast("QR Code Generated successfully!");
+        function getRenderOptions(payload) {
+            const fgColor = document.getElementById('color-fg').value;
+            const bgColor = document.getElementById('color-bg').value;
+            const ecLevel = document.getElementById('setting-ec').value;
+            const dotType = document.getElementById('setting-dots').value;
 
+            // Simple contrast warning (naive check, doesn't prevent generation)
+            if (fgColor === bgColor || (fgColor === '#ffffff' && bgColor === '#ffffff')) {
+                showToast("Warning: Low contrast between colors may make the QR unreadable.", "error");
+            }
+
+            return {
+                data: payload,
+                qrOptions: {
+                    errorCorrectionLevel: ecLevel
+                },
+                dotsOptions: {
+                    color: fgColor,
+                    type: dotType
+                },
+                backgroundOptions: {
+                    color: bgColor
+                },
+                image: state.logoDataUrl || undefined,
+                imageOptions: {
+                    crossOrigin: "anonymous",
+                    margin: 10,
+                    imageSize: 0.25, // 25% of QR Code
+                    hideBackgroundDots: true
+                }
+            };
+        }
+
+        function triggerPreviewUpdate() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                // If there's valid data, automatically update preview. Otherwise, wait for manual generate.
+                try {
+                    // Try to validate silently
+                    const payload = getPayloadSilent();
+                    if (payload) {
+                        renderQR(payload);
+                    }
+                } catch(e) {
+                    // Do nothing on silent failure during typing
+                }
+            }, DEBOUNCE_DELAY);
+        }
+
+        function getPayloadSilent() {
+            let payload = state.mode === 'single' 
+                ? document.getElementById('single-url').value.trim() 
+                : document.getElementById('multi-hub-url').value.trim();
+            if (payload && isValidURL(payload) && !payload.startsWith('file://')) return payload;
+            return null;
+        }
+
+        async function handleGenerate() {
+            try {
+                const payload = validateAndGetPayload();
+                await renderQR(payload);
+                showToast("QR Code successfully generated!", "success");
             } catch (err) {
-                console.error(err);
-                showToast("Maximum limits reached. Please remove a link.");
+                if (err.message && err.message.field) {
+                    const errEl = document.getElementById(err.message.field);
+                    errEl.textContent = err.message.msg;
+                    errEl.classList.remove('hidden');
+                } else {
+                    showToast(err.message || "Failed to generate QR code", "error");
+                }
             }
         }
 
-        // ---------------------------------------------------------
-        // File Download Logic
-        // ---------------------------------------------------------
-
-        function downloadQR(format) {
-            const canvas = document.getElementById('qr-canvas');
-            if(canvas.classList.contains('hidden')) return;
-
-            let dataUrl, filename;
-
-            if (format === 'png') {
-                dataUrl = canvas.toDataURL('image/png');
-                filename = 'qrmix-code.png';
-            } else if (format === 'jpg') {
-                dataUrl = canvas.toDataURL('image/jpeg', 1.0);
-                filename = 'qrmix-code.jpg';
-            }
-
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        async function renderQR(payload) {
+            const options = getRenderOptions(payload);
             
-            showToast(`Downloading as ${format.toUpperCase()}...`);
+            const container = document.getElementById('qr-canvas-container');
+            const placeholder = document.getElementById('qr-placeholder');
+            
+            placeholder.classList.add('hidden');
+            
+            try {
+                state.qrCodeInstance.update(options);
+                
+                // Only append if it's not already in the container
+                if (!container.querySelector('canvas') && !container.querySelector('svg')) {
+                    await state.qrCodeInstance.append(container);
+                }
+                
+                state.isGenerated = true;
+            } catch (e) {
+                console.error(e);
+                placeholder.classList.remove('hidden');
+                placeholder.innerHTML = `<i class="ph ph-warning-circle text-error text-4xl mb-2"></i><span class="text-xs text-error">Data too large or<br>generation failed</span>`;
+                state.isGenerated = false;
+                throw new Error("QR Generation failed. Try reducing data length.");
+            }
         }
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toast-message').textContent = msg;
-            toast.classList.remove('translate-y-[150%]', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-[150%]', 'opacity-0');
-            }, 3500);
+        /**
+         * Export functionality
+         */
+        function downloadQR(format) {
+            if (!state.isGenerated) {
+                showToast("Please generate a valid QR code first.", "error");
+                return;
+            }
+            
+            const fileName = `my-qr-code-${Date.now()}`;
+            state.qrCodeInstance.download({ name: fileName, extension: format })
+                .then(() => showToast(`Downloaded ${format.toUpperCase()} successfully!`, "success"))
+                .catch(() => showToast("Download failed.", "error"));
         }
 
+        function downloadHubHTML() {
+            // Validate links
+            const validLinks = state.links.filter(l => l.url.trim() !== '' && l.title.trim() !== '');
+            if (validLinks.length === 0) {
+                showToast("Please add at least one valid title and URL.", "error");
+                return;
+            }
+            
+            for (let l of validLinks) {
+                if (!isValidURL(l.url)) {
+                    showToast(`Invalid URL in list: ${l.url}`, "error");
+                    return;
+                }
+            }
+
+            const htmlContent = generateHubHTMLString(validLinks);
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'link-hub.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast("Hub HTML downloaded! Host this file to get your final link.", "success");
+        }
+
+        function generateHubHTMLString(links) {
+            const buttonsHTML = links.map(l => 
+                `<a href="${escapeHTML(l.url)}" class="link-btn" rel="noopener noreferrer">${escapeHTML(l.title)}</a>`
+            ).join('\n        ');
+
+            return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Links</title>
+    <style>
+        :root {
+            --bg: #0A0A0C;
+            --surface: #17171B;
+            --primary: #5C6AC4;
+            --text: #FFFFFF;
+            --text-muted: #A1A1AA;
+            --border: #2E2E36;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+        }
+        .header p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 14px;
+        }
+        .link-btn {
+            display: block;
+            background-color: var(--surface);
+            color: var(--text);
+            text-decoration: none;
+            padding: 18px 24px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .link-btn:hover {
+            background-color: #202027;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        .link-btn:active {
+            transform: scale(0.98);
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>My Links</h1>
+            <p>Select a destination below</p>
+        </div>
+        ${buttonsHTML}
+    </div>
+    <div class="footer">
+        Generated by Premium QR Code Generator
+    </div>
+</body>
+</html>`;
+        }
+
+        /**
+         * Utilities
+         */
         function escapeHTML(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
         }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'error' ? 'bg-error' : (type === 'success' ? 'bg-emerald-600' : 'bg-primary');
+            const icon = type === 'error' ? 'ph-warning-circle' : (type === 'success' ? 'ph-check-circle' : 'ph-info');
+            
+            toast.className = `${bgClass} text-white px-5 py-3 rounded-full text-sm font-medium shadow-lg flex items-center gap-2 transition-all duration-300 transform translate-y-8 opacity-0 pointer-events-auto`;
+            toast.innerHTML = `<i class="ph ${icon} text-lg"></i> ${escapeHTML(message)}`;
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-8', 'opacity-0');
+            });
+            
+            // Animate out
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
     </script>
 </body>
 </html>
